@@ -1,0 +1,77 @@
+# 业务工程示例：demo-boot（微服务形态：application.yaml 经 spring.config.import 接 Nacos 配置中心 + 注册，mse.rpc.mode=dubbo）
+# 部署前置：先执行 mse-sample/mse-demo/sql 建业务表；Nacos 就绪且 mse-demo.yaml 基线已导入（CONFIG_DIR 复用 init-configs.sh）；
+# 共享环境变量复用 mse-framework/mse-boot/k8s/configmap.yaml（含 MSE_NACOS_ADDR，Pod 内经 Nacos 配置内容中的 MSE_* 占位符生效）
+# 业务工程的清单位于自己工程内（本文件即参考模板）：复制后改镜像名/端口/业务 env 即可
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mse-demo
+  labels:
+    app: mse-demo
+    app.kubernetes.io/part-of: ai-mse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mse-demo
+  template:
+    metadata:
+      labels:
+        app: mse-demo
+        app.kubernetes.io/part-of: ai-mse
+    spec:
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: mse-demo
+          image: mse/demo-boot:1.0.0   # 按实际仓库/版本修改
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: mse-config       # 复用基座共享配置（MySQL/Redis/Nacos 地址；微服务必用 MSE_NACOS_ADDR）
+          env:
+            - name: JAVA_OPTS
+              value: "-XX:MaxRAMPercentage=75.0"
+            # Actuator 鉴权令牌（服务端 mse.actuator.auth.token 同键，见 mse-micro-common.yaml）：
+            # 空值 = 服务端 actuator 鉴权关闭、探针匿名可过（兼容未开启鉴权的集群）；生产接 Secret 注入
+            - name: MSE_ACTUATOR_TOKEN
+              value: ""
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            exec:                  # actuator 默认全保护（含 health），探针带令牌头；镜像 temurin 21-jre 自带 curl
+              command: ["sh", "-c", "curl -fs -H \"X-Actuator-Token: ${MSE_ACTUATOR_TOKEN}\" http://localhost:8080/actuator/health"]
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 20   # Spring Boot 冷启动较慢，给足启动窗口
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "curl -fs -H \"X-Actuator-Token: ${MSE_ACTUATOR_TOKEN}\" http://localhost:8080/actuator/health"]
+            initialDelaySeconds: 60
+            periodSeconds: 10
+          lifecycle:
+            preStop:               # 留缓冲给网关/前端请求收尾
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mse-demo
+  labels:
+    app: mse-demo
+spec:
+  type: ClusterIP
+  selector:
+    app: mse-demo
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

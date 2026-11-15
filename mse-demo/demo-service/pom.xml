@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>vip.mseapp</groupId>
+        <artifactId>mse-demo</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>demo-service</artifactId>
+    <name>demo-service</name>
+    <description>演示中心业务积木（纯 jar，无 main，SPI 自装配）：混合租户路由 + RocketMQ + Seata 全链路演示</description>
+
+    <dependencies>
+        <!-- 自有契约积木：对外 RPC 契约的实现方 -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>demo-api</artifactId>
+        </dependency>
+        <!-- 基座技术积木（starter-* 内部装配件：自动装配随 jar 走，工具本体经其传递带入） -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>starter-mybatis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>starter-rpc</artifactId>
+        </dependency>
+        <!-- common-mq：RocketMQ 订单事件演示的工具类型（TenantEventSender/RocketMQListener 编译依赖）。
+             装配在 boot 层引 mq-starter 才生效（demo-boot 已引）；未配置 RocketMQ 时事件演示不可用，其余功能不受影响 -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>common-mq</artifactId>
+        </dependency>
+        <!-- starter-seata：placeOrder 的 @GlobalTransactional 多库全局事务演示（主库扣库存 + 租户库建订单），
+             仅编译期注解需要。声明为 optional：聚合方（如 mse-monolith）不传递继承 seata——类路径没有 seata 时
+             该注解被 JVM 静默忽略，双注解自动退化为 @Transactional 本地事务（单体形态无需任何裁剪）。
+             微服务形态由 micro-starter 内置 Seata，经 Nacos 共享基线 MSE_SEATA_ENABLED 控制开关 -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>starter-seata</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- 基座契约积木：跨模块 RPC 唯一合法依赖 -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>api-tenant</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>api-system</artifactId>
+        </dependency>
+        <!-- 双注解回归测试用 mysql 驱动（仅 test 作用域） -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

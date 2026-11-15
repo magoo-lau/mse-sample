@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>vip.mseapp</groupId>
+        <artifactId>mse-sample</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>mse-monolith</artifactId>
+    <name>mse-monolith</name>
+    <description>单体示例：mono-starter（聚合基座 system/tenant/auth + 全部装配件）+ 现有全部业务积木（mp/oa/open/data/ai/fs/demo/search/monitor），mse.rpc.mode=local，默认仅依赖 MySQL/Redis（RocketMQ 可选：mq-starter 已随包，放开 application.yaml 的 rocketmq 段即启用，MQ 与形态无关；搜索引擎另需 Elasticsearch）；业务积木经 SPI 自动装配，加依赖即聚合</description>
+
+    <dependencies>
+        <!-- 单体形态入口启动器：聚合基座三积木 service-system/tenant/auth + starter-web/mybatis/redis/security/rpc
+             装配件 + actuator + 三方言 JDBC 驱动；mse.rpc.mode 默认 local，无 Nacos/Dubbo/Seata -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>mono-starter</artifactId>
+        </dependency>
+        <!-- 模块区积木（mse-modules 独立工程发布件，构建前需先 mvn install 对应工程）：
+             全部经 Spring Boot SPI 自动装配，引入即得 Controller/Service/Mapper；
+             微信公众号 / 协同办公（含 Flowable）/ 开放平台 / 数据中台 -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>mp-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>oa-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>open-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>data-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <!-- search-service：搜索引擎（Elasticsearch 9 全文检索）。其 ES 客户端（spring-boot-starter-elasticsearch）
+             非 optional 随包传递——需运行 Elasticsearch 中间件（docker compose up -d elasticsearch），
+             连接见 application.yaml 的 spring.elasticsearch.uris；ES 未启动不影响单体其余功能，
+             仅搜索索引/查询不可用。源登记与增量数据经契约本地直调（mse.rpc.mode=local） -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>search-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <!-- mes-service：MES 制造执行系统（建模/计划/执行/报工/质量/设备/物料/追溯/看板一期闭环）。
+             业务表与角色种子随 jar 内 db/tenant 脚本启动自动应用（9 个角色按租户自动种入），
+             子应用/菜单/权限点经 starter-bridge 推送基座库；规划文档见 mse-modules/mse-mes/docs -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>mes-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <!-- demo-service：可选聚合的业务示例积木。其 starter-seata 为 optional 不传递——
+             单体类路径没有 seata，placeOrder 的 @GlobalTransactional 注解被静默忽略，
+             双注解退化为 @Transactional 本地事务（需演示 Seata 全局事务请改跑微服务 mse-demo）；
+             首次启用需先对 mse 库执行 mse-sample/mse-demo/sql/<方言>/demo_init.sql -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>demo-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <!-- MQ 可选（与单体形态不冲突）：RocketMQ 租户事件装配（demo 订单事件演示的 TenantEventSender）；
+             application.yaml 未配置 rocketmq 时自动降级 noop，事件不可用、其余功能不受影响 -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>mq-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>ai-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <!-- fs-service：文件存储（本地/RustFS 可切换）。其 S3 客户端（software.amazon.awssdk:s3）
+             为 optional 不传递——单体 classpath 无 SDK，mse.fs.storage.type 强制 local
+             （本地文件系统模式）；需要 RustFS 时给单体补引该依赖即可 -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>fs-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <!-- S3 兼容客户端（RustFS 1.x）：fs-service 中为 optional 不传递，启动器显式引入后
+             local/rustfs 两种存储模式可经 Nacos 配置（mse.fs.storage.type）随时切换，无需重打包 -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+        <!-- monitor-service：监控中心（服务/中间件/操作系统监控 + 阈值告警）。
+             拉模式零侵入（微服务仅读 /actuator/health）；OS 指标经 OSHI 采集单体所在主机；
+             告警通知收件人/Webhook 存 mon_setting 表（监控中心界面维护），站内信经契约本地直调；
+             内存态调度（单实例部署即可）。首次启用需执行 mse-modules/mse-monitor/sql/<方言>/ 的
+             monitor_base.sql + monitor_init.sql -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>monitor-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <!-- im-service：即时通讯集成 OpenIM（账号桥 + IM 会话签发 + 工作台 SSO）。
+             无业务表（实例绑定走 mse.im.* 配置）；需配套部署 OpenIM 实例并在单体配置
+             mse.im.server.*（api-url/ws-url/secret），见 mse-modules/mse-im/docs/TODO.md -->
+        <dependency>
+            <groupId>vip.mseapp</groupId>
+            <artifactId>im-service</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <!-- 启用 Spring AI 默认模型（mseChatClient 基线）时取消注释，
+             并同步把 application.yaml 的 spring.ai.chat.client.enabled 改为 true
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>
+        -->
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

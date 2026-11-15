@@ -1,0 +1,19 @@
+/* wujie 中 iframe 为隐藏容器，100vh 不生效，统一使用 100% 高度链 */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+/* 深色派生变量补声明：EP 只在 :root 以 var() 引用定义 disabled 三件套等派生变量，
+   wujie 嵌入时 :root 被改写为 :host（挂在主文档侧），引用链在宿主处按浅色调色板求值后
+   继承进 shadow，深色模式下禁用态（分页禁用按钮白底、禁用输入框浅底等）因此失真。
+   此处在内层 html.dark 作用域重声明，使其在深色调色板就位处求值（与 dark/css-vars.css 配套）。 */
+html.dark {
+  --el-disabled-bg-color: var(--el-fill-color-light);
+  --el-disabled-text-color: var(--el-text-color-placeholder);
+  --el-disabled-border-color: var(--el-border-color-light);
+  --el-border-color-hover: var(--el-text-color-disabled);
+  --el-svg-monochrome-grey: var(--el-border-color);
+}

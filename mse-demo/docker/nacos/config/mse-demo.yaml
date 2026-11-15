@@ -1,0 +1,76 @@
+# ==================== mse-demo 专属配置（Data ID: mse-demo.yaml    Group: DEFAULT_GROUP） ====================
+# 本文件是服务 application.yaml 的本地留档：经 init-configs.sh 写入 Nacos 后由配置中心管理，
+# 共享项（master 数据源/Redis/Sa-Token/MyBatis-Plus/Dubbo/租户开关/Seata）见 mse-micro-common/db/dubbo.yaml。
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,slowsql
+
+spring:
+  datasource:
+    dynamic:
+      datasource:
+        # 独立库租户示例（历史静态方式，推荐改走平台端「平台管理 → 租户数据源」界面维护并绑定；
+        # 同 key 时界面维护的动态数据源优先，无需重启）。
+        # strict=false：租户 ds_key 未注册对应数据源时回落 master，等价共享库语义
+        tenant2:
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          url: jdbc:mysql://${MSE_MYSQL_HOST:localhost}:${MSE_MYSQL_PORT:3306}/mse_tenant2?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useInformationSchema=true&nullCatalogMeansCurrent=true
+          username: ${MSE_MYSQL_USER:root}
+          password: ${MSE_MYSQL_PASSWORD:123456}
+
+# 启动自动迁移主库（jar 内 db/<方言>/ 脚本，mse-target: master）：demo 业务表/种子数据随 demo-service jar 就绪即应用，
+# 免手工执行；失败阻断启动。租户独立库（tenant2）不走此项——经「租户数据源初始化/懒初始化」克隆就绪；
+# demo_base（子应用注册/菜单/权限点，mse-target: base）由 starter-bridge 推送 mse-system 自动应用，同样免手工
+mse:
+  tenant:
+    schema:
+      auto-migrate: true
+
+# 演示中心可选中间件：不启动 RocketMQ 不影响登录与系统管理功能，
+# 仅订单事件消费演示需要（docker compose up -d rocketmq-namesrv rocketmq-broker）
+rocketmq:
+  name-server: ${MSE_ROCKETMQ_ADDR:localhost:9876}
+  producer:
+    group: mse-producer
+    send-message-timeout: 5000
+
+# Seata 全局事务（共享 mse-micro-db.yaml 已含全部 seata.* 配置，MSE_SEATA_ENABLED=true 开启）：
+# 启用后 /demo/order/place?fail=true 可演示跨库全局回滚（走网关时为 /demo/order/place?fail=true）
+
+# ==================== 信创数据库切换（可选 profile，默认 MySQL 不受影响） ====================
+# master 数据源与方言由共享 mse-micro-db.yaml 的 dm/kingbase profile 提供，
+# 启动加 --spring.profiles.active=dm 或 kingbase 即切换；业务表初始化随 jar 内 db/<方言>/ 脚本自动应用，无需手工脚本
+---
+spring:
+  config:
+    activate:
+      on-profile: dm
+  datasource:
+    dynamic:
+      datasource:
+        # 独立库租户：MySQL 的 mse_tenant2 库对应达梦 MSE_TENANT2 schema
+        tenant2:
+          driver-class-name: dm.jdbc.driver.DmDriver
+          url: jdbc:dm://${MSE_DM_HOST:localhost}:${MSE_DM_PORT:5236}?schema=MSE_TENANT2&characterEncoding=UTF-8
+          username: ${MSE_DM_USER:SYSDBA}
+          password: ${MSE_DM_PASSWORD:SYSDBA001}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: kingbase
+  datasource:
+    dynamic:
+      datasource:
+        # 独立库租户：独立 database mse_tenant2
+        tenant2:
+          driver-class-name: com.kingbase8.Driver
+          url: jdbc:kingbase8://${MSE_KB_HOST:localhost}:${MSE_KB_PORT:54321}/${MSE_KB_DB_TENANT2:mse_tenant2}?currentSchema=mse_tenant2,public
+          username: ${MSE_KB_USER:system}
+          password: ${MSE_KB_PASSWORD:123456}

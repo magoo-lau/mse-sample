@@ -1,0 +1,24 @@
+target/
+*.class
+*.jar.original
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*.log
+.flattened-pom.xml
+
+# 容器运行时数据卷（本地挂载，不入库）
+**/docker/*/volumes/
+
+# 本地运行产物（单体示例：文件存储降级目录/IM 开通备份/离线授权生成物，不入库）
+fs-files/
+im-provision-backups/
+license*.pem
+
+**/logs/
+**/node_modules/
+**/dist/
+node_modules/
+dist/
+.zcode/

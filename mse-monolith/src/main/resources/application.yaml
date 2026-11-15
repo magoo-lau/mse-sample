@@ -1,0 +1,430 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: mse-monolith
+  servlet:
+    multipart:
+      # OA 表单附件 20MB 为常规最大项（品牌素材 Logo 2MB / 背景图 8MB 上限由 DomainAssetStorage 把守）；
+      # 大上限供「离线交付 → 运行时套件」上传 GB 级介质包 zip（对齐平台侧 mse-platform.yaml 口径）
+      max-file-size: 20GB
+      max-request-size: 20GB
+  # JDK 21 虚拟线程：默认关闭（MySQL Connector/J 的 synchronized 在 JDK21 会 pin 载体线程，
+  # 待升级 JDK24+/更换驱动后再默认开启）
+  threads:
+    virtual:
+      enabled: false
+  # 库边界（平台/租户彻底分域）：master=缺省共享租户库（业务/身份/租户数据，tenant_id 行级隔离；
+  # 平台管理员可经「租户数据源」界面把共享租户绑定到其他自建共享库/分表库/独立库），platform=平台库
+  # （控制面 6 表 + 全局表 + 平台自身身份行 tenant_id=0——平台会话经路由拦截器自动落 platform）；
+  # 0.1.0 去默认租户库：primary=platform（平台库）；缺省共享租户库不再是静态数据源——按
+  # mse.tenant.shared-main.* 自 declare 注册内置池（键默认=本服务应用名，不落登记表），
+  # SharedMainBootstrap 建库（MySQL）+ eager 建身份表，租户库连接全部动态注册（lazy 池 + 首路由懒建结构）
+  datasource:
+    dynamic:
+      primary: platform
+      strict: false
+      lazy: true
+      # 动态注册的租户/共享库池继承全局上限（每库小池，防总连接数爆炸）
+      hikari:
+        maximum-pool-size: 5
+        minimum-idle: 1
+        idle-timeout: 300000
+        max-lifetime: 1800000
+        connection-timeout: 10000
+      datasource:
+        # 平台库（mse_platform）：控制面（sys_tenant 系）+ 定义目录 + 平台自身数据；
+        # 平台会话（tenant_id=0）与 PlatformBaseEntity 语句经 TenantDsExecutorInterceptor 自动路由到此；
+        # 无租户上下文语句落 primary 缺表即快速失败（防错库）
+        platform:
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          url: jdbc:mysql://${MSE_MYSQL_HOST:localhost}:${MSE_MYSQL_PORT:3306}/${MSE_MYSQL_DB:mse_platform}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useInformationSchema=true&nullCatalogMeansCurrent=true
+          username: ${MSE_MYSQL_USER:root}
+          password: ${MSE_MYSQL_PASSWORD:123456}
+  data:
+    redis:
+      host: ${MSE_REDIS_HOST:localhost}
+      port: ${MSE_REDIS_PORT:6379}
+      database: ${MSE_REDIS_DB:0}
+  elasticsearch:
+    # 搜索引擎（search-service）：Elasticsearch 9.x（docker compose 的 mse-elasticsearch，单节点免鉴权）。
+    # ES 未启动不影响单体启动与其余功能，仅搜索索引/查询不可用
+    uris: http://${MSE_ES_HOST:localhost}:9200
+  # ==================== Spring AI 默认模型（可选，默认关闭） ====================
+  # ai-service 自带动态多模型工厂（经 ai_model 表编程式构建），无默认 ChatModel Bean；
+  # Spring AI 的 ChatClient 自动装配硬性要求 ChatModel，未配默认模型时须显式关闭，
+  # 否则 common-ai 的 mseChatClient（ChatClient.Builder 基线）无法装配。
+  # 启用步骤：① mse-monolith/pom.xml 取消 spring-ai-starter-model-openai 注释；
+  #           ② 下方示例整段取消注释并填入真实 key/base-url/model。
+  # 注意：默认模型（spring.ai.*）与 ai_model 表里的动态模型互相独立，前者只供
+  #       mseChatClient / 平台级 ChatClient.Builder 使用，对话与知识库仍走 ai_model。
+  ai:
+    chat:
+      client:
+        enabled: false
+  # —— 启用示例（取消注释并改 enabled: true）——
+  #  ai:
+  #    chat:
+  #      client:
+  #        enabled: true
+  #    # 各能力（chat/embedding/image/moderation/audio.speech/audio.transcription）缺省即 openai；
+  #    # 不用的能力可置 none 关闭，如： spring.ai.model.image: none
+  #    model:
+  #      chat: openai
+  #      embedding: openai
+  #    openai:
+  #      api-key: ${SPRING_AI_OPENAI_API_KEY:sk-xxxx}
+  #      # OpenAI 兼容端点均可（SDK 在 base-url 后追加 /chat/completions）：
+  #      # DeepSeek https://api.deepseek.com、智谱 https://open.bigmodel.cn/api/paas/v4、
+  #      # Ollama http://localhost:11434/v1
+  #      base-url: https://api.openai.com
+  #      timeout: 60s
+  #      # chat/embedding 可各自覆盖 api-key/base-url，如： spring.ai.openai.chat.base-url
+  #      chat:
+  #        options:
+  #          model: gpt-4o-mini        # deepseek-chat / glm-4-flash 等
+  #          temperature: 0.7
+  #      embedding:
+  #        options:
+  #          model: text-embedding-3-small
+  #          dimensions: 1024          # 须与 mse.ai.embedding-dimensions 及向量库一致
+
+# ==================== RocketMQ（可选，与单体/微服务形态无关） ====================
+# 单体默认不配置 MQ：业务积木的租户事件发送自动降级 noop（warn 后丢弃，不阻断启动）。
+# 需要 MQ（demo 订单事件、异步解耦等）时：① docker compose up -d rocketmq-namesrv rocketmq-broker；
+# ② 下方整段取消注释（或以 MSE_ROCKETMQ_ADDR 环境变量注入）——无需换启动器，单体照用。
+#rocketmq:
+#  name-server: ${MSE_ROCKETMQ_ADDR:localhost:9876}
+#  producer:
+#    group: mse-producer
+#    send-message-timeout: 5000
+
+mybatis-plus:
+  global-config:
+    banner: false
+    db-config:
+      id-type: assign_id
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    map-underscore-to-camel-case: true
+
+sa-token:
+  token-name: ${MSE_TOKEN_NAME:Authorization}
+  timeout: 2592000          # token 有效期（秒）：30 天
+  active-timeout: -1        # 不做活跃检查
+  is-concurrent: true
+  is-share: false           # 每次登录独立 token 会话：多端/同端多次登录各成一条会话，可单条查看与下线（登录设备管理依赖）
+  token-style: uuid
+  is-log: false
+  is-read-cookie: false
+  is-read-header: true
+
+mse:
+  rpc:
+    mode: local             # 单体：本地直调；切 dubbo 需换用微服务启动器
+  # 统一调度中心（内置后台任务收编）：应用就绪 + startup-delay 后才开始调度（晚于结构迁移）；
+  # 多实例经 Redis 分布式锁防重；任务清单/启停/触发见平台端「平台管理 → 任务调度」页。
+  # mode：local（缺省内置调度）/ none（禁用全部内置后台任务）/ 外部调度器名（如 xxl-job，需另引适配 starter）
+  scheduling:
+    mode: local
+    startup-delay: 30s
+    pool-size: 4
+    state-sync-interval: 15s   # 降级兜底节拍：仅 Redis 缺席/控制哈希缺失时周期全量 sync（常态事件驱动，任务禁用期间零上报）
+    guard-enabled: true
+  # Actuator 端点鉴权（starter-web 过滤器）：空（默认）= 关闭、/actuator/** 匿名；
+  # 非空后 health/info/metrics/slowsql 一律要求请求头 X-Actuator-Token（生产经环境变量注入
+  # 强随机值；放行健康检查配 mse.actuator.auth.permit-ant-patterns: [/actuator/health*]）
+  actuator:
+    auth:
+      token: ${MSE_ACTUATOR_TOKEN:}
+  # 租户数据源（「平台管理 → 租户数据源」界面维护）连接密码的 AES 加密密钥；
+  # 不配时代码默认 mse-ds-dev-key-2026（仅供本地开发）。生产必须经环境变量更换，
+  # 且更换后需在「租户数据源」界面重新保存各数据源密码——旧密文无法用新密钥解开
+  tenant:
+    # 内置共享租户库坐标（自 declare 注册内置池、不落登记表；本进程 Bootstrap 建库+eager 身份表；
+    # 不配=纯独立库部署，启动零租户库动作）
+    shared-main:
+      url: jdbc:mysql://${MSE_MYSQL_HOST:localhost}:${MSE_MYSQL_PORT:3306}/${MSE_TENANT_DB:mse_tenant}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useInformationSchema=true&nullCatalogMeansCurrent=true
+      username: ${MSE_MYSQL_USER:root}
+      password: ${MSE_MYSQL_PASSWORD:123456}
+      db-type: mysql
+    # 服务名解析：各业务模块的自动装配类已标 @TenantServiceModule("mse-xxx") 自带服务身份，
+    # 框架启动自动收集，此处零配置；如需覆盖/接入未标注解的旧模块，可用逃生舱：
+    # service-mappings:
+    #   mse-oa: vip.mseapp.oa
+    # 启动自动迁移主库（jar 内 db/<方言>/ 脚本，mse-target: master）：各业务积木 jar 自带的 V*.sql（建表+种子）就绪即应用，
+    # 免手工执行；失败阻断启动（分册账本 mse_<biz>_schema_history 可查）。
+    # 租户独立库不走此项——由「租户数据源初始化/懒初始化」克隆+迁移自动就绪；
+    # 菜单/权限/子应用注册（mse-target: base）由 starter-bridge 推送 mse-system 自动应用，同样免手工
+    schema:
+      auto-migrate: true
+    dynamic-ds:
+      encrypt-key: ${MSE_TENANT_DS_ENCRYPT_KEY:mse-ds-dev-key-2026}
+  ai:
+    # common-ai 总开关（false 时不装配平台级 mseChatClient；对话仍走 ai_model 动态模型，默认 true）
+    # enabled: true
+    # 敏感字段（模型 apiKey/开放 API Key）AES-GCM 落库加密密钥——生产必须修改且不落仓库
+    crypt-key: ${MSE_AI_CRYPT_KEY:mse-ai-default-crypt-key-please-change}
+    # SSE 对话超时毫秒
+    sse-timeout-millis: 300000
+    # RPC 工具泛化调用超时毫秒
+    rpc-tool-timeout-millis: 60000
+    # 工具调用跑飞保护：单回合单工具/全部工具合计最大调用次数——超限以「已达上限」的中文提示
+    # 回传让模型自行收尾作答（不再无限重试，也不会把英文报错漏给用户）
+    tool-max-calls-per-tool: 10
+    tool-max-total-calls: 30
+    # 对话模型瞬态错误（5xx/429/网络 IO）额外重试次数与退避毫秒（0=不重试；耗尽且模型管理里
+    # 配了备用模型则整体切换备用重试）
+    chat-retry-times: 2
+    chat-retry-backoff-millis: 500
+    # 对话模型单次调用读超时毫秒（非流式=等待完整生成的上限；流式=块间空闲上限，不限制整体时长）
+    chat-timeout-millis: 120000
+    # 对话历史上下文窗口（最近 N 条消息送入模型）
+    memory-window: 40
+    # Milvus 向量库（知识库 RAG）：false 时知识库仅存 MySQL 不向量化
+    milvus-enabled: ${MSE_AI_MILVUS_ENABLED:true}
+    # Milvus 连接（milvus-enabled=true 时生效）
+    milvus-host: ${MSE_MILVUS_HOST:localhost}
+    milvus-port: ${MSE_MILVUS_PORT:19530}
+    # 平台向量模型：指向 ai_model 中配置了向量模型的记录 id（部署 Milvus 后必配）
+    # embedding-model-id: 1234567890
+    # 向量维度（须与向量模型输出一致：智谱 embedding-3=2048、Ollama nomic-embed-text=768）
+    embedding-dimensions: ${MSE_AI_EMBEDDING_DIMENSIONS:1024}
+    # 知识库原文件归档存储模式（注意是嵌套键 kb.storage-mode）：auto（默认，聚合/部署了 mse-fs
+    # 即走 mse-fs，归档串 fs:{fileId}）/ local（强制本地目录）/ fs（强制 mse-fs）
+    # kb:
+    #   storage-mode: ${MSE_AI_KB_STORAGE_MODE:auto}
+    # 知识库原文件归档目录（storage-mode=local 或 mse-fs 不可用时使用；默认 {user.home}/.mse/ai-kb）
+    # kb-storage-path: /data/mse/ai-kb
+    # 智能体头像存储模式（嵌套键 avatar.storage-mode）：auto（默认，mse-fs 可用走 /fs/asset 公开
+    # 素材通道、否则本地目录）/ local（强制本地）/ fs（强制 mse-fs）
+    # avatar:
+    #   storage-mode: auto
+    # 智能体头像本地兜底目录（默认 {user.home}/.mse/ai-avatar；mse-fs 模式不经此目录）
+    # avatar-storage-path: /data/mse/ai-avatar
+    # 知识库异步解析并发数（解析线程池大小）
+    kb-parse-workers: 2
+    # 知识库切片索引增强（自动关键词/自动问题）所用对话模型的 ai_model.id（空=回退 spring.ai.*
+    # 装配的默认模型；仅 kb.enhance-enabled=1 的知识库解析时调用）
+    # kb-enhance-model-id: 1234567890
+    # Rerank 重排模型（OpenAI 兼容 /rerank 协议，平台级；未启用时检索融合后直接排序）
+    rerank:
+      enabled: ${MSE_AI_RERANK_ENABLED:false}
+      # base-url: ${MSE_AI_RERANK_BASE_URL:https://api.siliconflow.cn/v1}
+      # api-key: ${MSE_AI_RERANK_API_KEY:sk-xxxx}
+      # model: ${MSE_AI_RERANK_MODEL:BAAI/bge-reranker-v2-m3}
+    # MCP Server（把平台工具/智能体暴露为 MCP；需 ai-boot 已引入 mcp-server starter）
+    mcp-server-enabled: ${MSE_AI_MCP_SERVER_ENABLED:false}
+    # 智能体编排（画布工作流 DSL，mse.ai.flow.*；以下为代码默认值，见 ai-service FlowProperties）
+    flow:
+      # 单次工作流执行全局超时毫秒
+      timeout-millis: 120000
+      # 并行分支：多活跃路径并发执行（false 回退按声明顺序串行）
+      parallel: true
+      # 数据查询节点默认工具编码与行数上限（复用工具中心通道，微服务模式在工具中心登记 rpc 工具）
+      dataset-tool-code: data_query
+      dataset-row-limit: 200
+      # 迭代节点单次最大条目数（防爆炸）
+      iteration-max-items: 50
+      # HTTP 请求节点超时毫秒
+      http-timeout-millis: 15000
+      # HTTP 请求节点允许的域名白名单（命中则放行内网地址；默认空 = 全部禁内网）
+      # http-allowed-hosts: [api.example.com]
+      # 代码节点单次执行超时秒
+      code-timeout-seconds: 10
+  # 数据中台（data-service 的 DataProperties，mse.data.*）：crypt-key 等键均有代码默认值，不配即可跑。
+  # 业务库智能查询（biz_query 工具 / biz_analyst 智能体「业务数据分析师」）表访问控制：
+  # 前缀白名单放行 + 硬黑名单兜底（deny 命中即拒绝且 allow 不可越过，双通道共用——
+  # data_query 的查询白名单登记同样受 deny 硬约束，防止 sys_user 等敏感表被加白旁路）。
+  # 注意：biz-query 仅在需要覆盖默认值时才出现（Boot 4 绑定器对「空键:null」会尝试 String→对象
+  # 转换而启动失败，不能再像 Boot 3 那样留空键占位）；默认值见 DataProperties.BizQuery：
+    biz-query:
+       allow-prefixes: [mes_, oa_, mp_]        # 放行业务表前缀（小写），新业务模块在此追加
+       deny-prefixes: [sys_, ai_, dat_, open_, fs_, search_, im_, mon_, ods_, undo_]  # 安全底线
+       deny-tables: []                          # 硬拒绝精确表名
+       max-rows: 200                            # 单次返回行数上限
+       timeout-millis: 10000                    # 执行超时毫秒
+  # 搜索引擎（search-service）：以下键均有代码默认值（见 search-service 的 SearchProperties），不配即可跑
+  search:
+    # 索引名前缀（索引 = mse-search-{sourceCode 小写}）
+     index-prefix: mse-search
+    # 中文分析器（ES 镜像已预装 smartcn；换 IK 时建 ik_max_word 并为已有索引重建）
+    # analyzer: smartcn
+    # 闲时窗口（逗号分段 HH:mm-HH:mm，支持跨天）：idleOnly 任务仅窗口内执行
+    # idle-window: 00:00-07:00
+    # scan/task 调度默认开启（轮询/批次/防雪崩参数见 SearchProperties；多实例靠分布式锁防重入）
+  # 租户隔离零配置：全部业务表带 tenant_id 由基座租户插件统一隔离；
+  # 无租户列的全局表由框架按实体基类（GlobalBaseEntity）自动豁免，无需 ignore-tables
+  fs:
+    storage:
+      # 存储实现：local（本地文件系统，缺省）/ rustfs（RustFS 1.x，S3 兼容对象存储）
+      # fs-boot 已引入 AWS SDK，两种模式可随时经本配置切换（运行期修改后重启生效）
+      type: ${MSE_FS_STORAGE_TYPE:local}
+      local:
+        # 本地存储根目录（生产挂载持久卷）；按 {tenantId}/ 子目录隔离租户
+        base-dir: ${MSE_FS_BASE_DIR:./fs-files}
+      rustfs:
+        # RustFS S3 兼容端点与凭据（对应 docker/rustfs/compose.yaml 的 RUSTFS_ACCESS_KEY/SECRET_KEY）
+        endpoint: ${MSE_FS_ENDPOINT:http://localhost:9000}
+        access-key: ${MSE_FS_ACCESS_KEY:rustfsadmin}
+        secret-key: ${MSE_FS_SECRET_KEY:rustfsadmin}
+        # 桶名（不存在时服务启动自动创建）；桶内按 {tenantId}/ 前缀隔离租户
+        bucket: ${MSE_FS_BUCKET:mse-fs}
+        region: ${MSE_FS_REGION:us-east-1}
+        # path-style 寻址（RustFS 单机部署必须 true）
+        path-style-access: true
+      presign:
+        # 预签名直链开关（仅 rustfs 模式生效；默认关闭，下载统一走服务端代理以保留鉴权与审计）
+        enabled: ${MSE_FS_PRESIGN_ENABLED:false}
+        # 预签名有效期（秒）
+        ttl-seconds: ${MSE_FS_PRESIGN_TTL:3600}
+  # 慢 SQL 采集（框架 common-mybatis/starter-mybatis）：默认关闭零开销，开启后 StatementHandler 层计时，
+  # 超阈值语句进内存环形缓存并经 /actuator/slowsql 端点暴露（monitor 的 slowsql 目标拉取此端点）。
+  # 微服务形态按服务在各自 Nacos 配置（mse-xxx.yaml）显式开启
+  mybatis:
+    slow-sql:
+      enabled: true
+      threshold-ms: 2000   # 慢 SQL 阈值（毫秒），默认 3000
+      # capacity: 32         # 环形缓存条数
+  # 监控中心（monitor-service）：以下键均有代码默认值（见 monitor-service 的 MonitorProperties），不配即可跑。
+  # 告警通知的收件人/Webhook 不在此处——存 mon_setting 表，监控中心「告警中心 → 通知设置」界面维护。
+  monitor:
+    # 离线模式（缺省 false=在线；租户离线私有部署置 true：监控采集/查询全走本地库，租户端自管）
+    # offline: false
+    # 调度轮询间隔（毫秒）
+    # scan-interval-ms: 10000
+    # 新目标默认采集间隔（秒）
+    # default-collect-interval: 30
+    # 采样保留天数（每日 04:30 清理）
+    # retention-days: 7
+    # 采集线程池并行度
+    # executor-parallelism: 4
+    # probe:
+    #   单次探测超时（毫秒）
+    #   timeout-ms: 5000
+  service:
+    ai:
+      controller:
+        enabled: true
+  license:
+    private-key: MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCr6PKi0ihcEiER/uwIpSuBA32USL+myqDfFyBybp0bN4BfoWW4oUc81mTwP09ooiwS8mf3RQ+yjH5lbdK4o7t5bT5KHkiN79RsbKTiLKW+qJQhaMST+GEDE+SMWujlgEjcTltFQE9wrNyZqG/ubFIrZcKcRKTU4+LQ5kFnqaozK66VoxsrqHEmw6BtFr5Z9UP1MQdO8JCyf3gyaVLkK4KXkXVgomw5tOGxGi1oRnwZJ9CMq/8hOeQWQUq5msitaBShefun1nGZLDl85lfXgI/jRohJKzgZbFVeNhqXyyfESNDTUZWIVBeRjpPmR90jxa769KtPpOfB85D0iz6IG9FXAgMBAAECgf9C4WpbDx2kk0gAF0o4yH05ApIe6NPIFD6azom0LOk8sZkCDxcMRcMKDVara4J1NtQom2hTIagOZ5pRcFPyDfK0eGzYDkKnzIFP73jLCZO0IYbrJfRMUrylJ27Pn7f8BTLoH8V7QFxt0F8K9S5lRVPLRCJuToh3UveUd2uXmm6Yy8akVMxvcyYCQT9K7uFSgKurhWTOZw/0SwgDsi2h/1e5q3Jwx4UKsI892YeOf2c2oTMGV2rS3PxJvxlnXdC/556JT40wGuUzzR2i0tr2Qr0k1R8knVY9KyUCIGOxrWrl7/bsz4gjEoFBIY9bLVAZCdMKm2NjhpKvBNfjlMiTgB0CgYEA1p03GO20abaIherXu/ydBUtbEOZO/jv2G1vCutJxYCRtnlLWTRQZPl7NJtpl1ssEhCffDjJYLaYzBFw6RaZ1ZTBptEwGT3qZbT/ltT7hp5Aua50j3VhcXFRrWP0XQ+eaVb+Gc+jHCZLlBFTkDoRUT7hDux9CjA07A4F7LA+Vhh0CgYEAzQ+R41WRRObhxJHI/c+ncmopdbZjzn0Aoae3jWYOWzaJ6+nvYTvfE+OtQZ+Cjr+wOsAcBnCLZCD6/yCwQGWRg6Xk+n/539ORsJ9+0AEV6dBHOt/dfh7og7cNBPpW0kFsS1ceKEQ+K2CmY70ZSb//BmtUgMMdwu+aYpIErxt4CwMCgYB4KJvRnD0XtvgnKn5RJTVw4mkBREFT/JRlavHTEcIilyK8sxqDG06q6f8o0ryUDyTfLUeoti1CmbwUo+KIXpN57SoxpSMfWsAON+lPmf5Th9lFrTyIUFGd7DISJ9nfzgtOGSaZPOo7hQAuda0eJ57g54UcfnsO2NWCt/sTh0IrTQKBgQDABpOMOmXmCvtic06vd5SLjSS0CY9fHynHN+KoM+i/u8veMtwqxsE4w91L9Y5yFMl3ysyzrxKpOkUxQrAqLbLdgC1z8wHQezQUHNfI+ytFH/iEBn1JDLKaHYHApplFHWTHDJa+CGHbhw9pmPwkVvn/TeT9CzpEgNGm+qwOOn/odwKBgQCyBbzqTO/vJi6Gg1706Sug/0qf4CzBJMl6TQWa/ma2d9q2VIue+042NvKsoJpXDuVTxEJIeSWHb4ARu8CGorMvWoiQ8YLhgpyI6FJA3TpKwoOPK+c/QWiZCtxgWpktxKGi21pxz2m67Txc4yLsIQsB+KKpylZlbLdFVAyqJN/sMQ==
+  im:
+    # 总开关：false 时所有端点返回「IM 功能未开通」（客户端据此隐藏聊天入口）
+    enabled: ${MSE_IM_ENABLED:true}
+    # 实例 secret 密文加密密钥（台账 secret_enc 落库用）：生产必须修改并妥善保管；
+    # 更换密钥后历史密文无法解密，需重新录入实例密钥
+    crypt-key: ${MSE_IM_CRYPT_KEY:mse-im-default-crypt-key-please-change}
+    # 默认实例（未命中 servers 的租户走它；standalone/单实例只配这段）。
+    # secret 与 OpenIM 实例 config/share.yml 顶层 secret 一致，生产必须更换并妥善保管（绝不提交仓库）；
+    # 缺省留空 = 使用时明确报「缺少 secret 配置」，避免出厂默认凭据
+    server:
+      api-url: ${MSE_IM_API_URL:http://127.0.0.1:10002}
+      ws-url: ${MSE_IM_WS_URL:ws://127.0.0.1:10001}
+      # 公网坐标：生产为同域名反代（方案 docs/tech/openim-integration.md 4.1），缺省回落内网值
+      public-api-url: ${MSE_IM_PUBLIC_API_URL:}
+      public-ws-url: ${MSE_IM_PUBLIC_WS_URL:}
+      secret: ${MSE_IM_SECRET:}
+      admin-user-id: ${MSE_IM_ADMIN_USER_ID:imAdmin}
+    # 按租户覆盖（key = 租户编号）：多租户绑多实例 = 改这里，Nacos 热更新即生效。示例：
+    # servers:
+    #   "2":
+    #     api-url: http://10.0.0.11:10002
+    #     public-api-url: https://im.tenant-b.com/api
+    #     public-ws-url: wss://im.tenant-b.com/msg_gateway
+    #     secret: ${MSE_IM_T2_SECRET:}
+    #     admin-user-id: imAdmin
+    servers: { }
+    sso:
+      code-ttl-seconds: 60          # 一次性 code 有效期
+      issue-rate-limit: 10          # 同用户 60s 窗口内签发上限
+      allow-empty-origin: false     # 浏览器必带 Origin 才可兑换（curl 联调可临时开启）
+    client:
+      timeout-ms: 5000
+      admin-token-refresh-ahead-seconds: 600
+    ssrf:
+      # 租户自助录入 api-url 的内网网段白名单（IPv4 CIDR 或 loopback）：
+      # 内网部署 OpenIM 实例时保留；纯云托管/公网实例可清空收紧
+      allow-private-cidrs:
+        - loopback
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+    callback:
+      # mse-im 对 OpenIM 实例可达的基址（回填租户 webhooks.yml 的 url 前缀）
+      base-url: ${MSE_IM_CALLBACK_BASE_URL:http://127.0.0.1:8080}
+    provision:
+      # 开通平台编排（P2）：enabled=true 且宿主机 docker CLI 可用时，/im/provision/** 可用
+      enabled: ${MSE_IM_PROVISION_ENABLED:false}
+      template-dir: ${MSE_IM_PROVISION_TEMPLATE_DIR:docker/openim}
+      data-root: ${MSE_IM_PROVISION_DATA_ROOT:./im-provision-data}
+      port-base: 11000
+      block-size: 10
+      health-timeout-seconds: 180
+# ==================== 聚合业务积木（mp/oa/open/data）的专属配置 ====================
+# 各业务 mse.*.* 配置键均有代码默认值（见各工程 *Properties：mse.mp/mse.oa/mse.open/mse.data），不配即可跑，生产按需覆盖；
+# 未聚合的业务其配置键冗余无害。业务专属端点（微信回调 /mp/callback/**、开放 API 等）以签名自鉴权，无需登录态。
+# Flowable 工作流引擎（oa-service 聚合的 oa-bpm）：schema 首次启动自动建 ACT_ 表；异步执行器关闭（与 oa-boot 基线一致）
+flowable:
+  database-schema-update: true
+  # 二期起默认开启异步执行器：OA 节点超时（边界定时器）依赖它触发
+  async-executor-activate: true
+  # 事件注册表：OA 审批不使用（消息/信号事件为引擎原生能力），且 Flowable 8.0.0 在全新库初始化时
+  # EventDbSchemaManager 误跑 6.5.0.1→6.5.0.2 升级脚本、对已建表重复 CREATE 导致启动失败——
+  # 关闭其 Spring 自动装配（引擎级 setDisableEventRegistry(true) 已在 oa-bpm 引擎定制器中设置）
+  eventregistry:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,slowsql
+
+logging:
+  level:
+    vip.mseapp: debug
+  pattern:
+    # 日志上下文注入 Boot 默认格式：traceId 链路串联、tenant/user 认证后镜像进 MDC、
+    # ds 为语句级数据源路由标注（落主库时显示 -）
+    correlation: "[trace:%X{traceId:-} tenant:%X{tenantId:-} user:%X{userId:-} ds:%X{ds:-}] "
+
+# ==================== 信创数据库切换（可选 profile，默认 MySQL 不受影响） ====================
+# 启动加 --spring.profiles.active=dm 或 kingbase 即切换；初始化脚本见 docker/dameng/init、docker/kingbase/init
+---
+spring:
+  config:
+    activate:
+      on-profile: dm
+  datasource:
+    dynamic:
+      datasource:
+        # 信创形态共享库请在「租户数据源」界面登记（schema 形态 URL 不宜属性播种）
+        platform:
+          driver-class-name: dm.jdbc.driver.DmDriver
+          url: jdbc:dm://${MSE_DM_HOST:localhost}:${MSE_DM_PORT:5236}?schema=${MSE_PLATFORM_SCHEMA:MSE}&characterEncoding=UTF-8
+          username: ${MSE_DM_USER:SYSDBA}
+          password: ${MSE_DM_PASSWORD:SYSDBA001}
+mse:
+  mybatis:
+    db-type: dm
+
+---
+spring:
+  config:
+    activate:
+      on-profile: kingbase
+  datasource:
+    dynamic:
+      datasource:
+        platform:
+          driver-class-name: com.kingbase8.Driver
+          url: jdbc:kingbase8://${MSE_KB_HOST:localhost}:${MSE_KB_PORT:54321}/${MSE_KB_DB:mse}?currentSchema=${MSE_PLATFORM_SCHEMA:mse},public
+          username: ${MSE_KB_USER:system}
+          password: ${MSE_KB_PASSWORD:123456}
+mse:
+  mybatis:
+    db-type: kingbase_es
+

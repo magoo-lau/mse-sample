@@ -1,0 +1,15 @@
+# ==================== 应用配置（Nacos 配置中心经 spring.config.import 接入） ====================
+# SCA 2025.1 起 bootstrap 装载路径已移除，统一走 config-data 机制（optional:nacos:<dataId>）。
+# 生效优先级：声明靠后者优先——服务专属 Data ID（${spring.application.name}.yaml）放最后。
+spring:
+  application:
+    name: mse-demo
+  config:
+    import:
+      - optional:nacos:mse-micro-common.yaml
+      - optional:nacos:mse-micro-db-biz.yaml
+      - optional:nacos:mse-micro-dubbo.yaml
+      - optional:nacos:mse-demo.yaml
+  cloud:
+    nacos:
+      server-addr: ${MSE_NACOS_ADDR:localhost:8848}
