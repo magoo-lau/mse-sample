@@ -5,7 +5,7 @@
 # MODULE/PORT 即可，模板体保持一致（改运行层处理需同步各份 Dockerfile）
 #
 # 构建（context 必须是仓库根目录，源码自包含，无需宿主机预装 Maven/JDK）：
-#   docker build -f mse-sample/mse-demo/demo-boot/Dockerfile -t mse/demo-boot:1.0.0 .
+#   docker build -f mse-demo/demo-boot/Dockerfile -t mse/demo-boot:1.0.0 .
 #
 # 本地已 mvn package 想快速出镜像：mse-framework/mse-boot/Dockerfile.prebuilt（所有启动器通用）
 # =============================================================================
@@ -15,7 +15,7 @@ ARG RUNTIME_IMAGE=eclipse-temurin:21-jre-jammy
 
 # ---- 阶段 1：Maven 构建 ----
 FROM ${MAVEN_IMAGE} AS builder
-ARG MODULE=mse-sample/mse-demo/demo-boot
+ARG MODULE=mse-demo/demo-boot
 # 国内网络慢时可自行挂载加速配置，如：--build-arg MAVEN_ARGS="-s /path/settings.xml"
 ARG MAVEN_ARGS=""
 WORKDIR /build

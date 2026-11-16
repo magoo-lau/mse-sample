@@ -1,0 +1,95 @@
+# =============================================================================
+# 示例区本地编排：单体最小集（mysql + redis）+ 示例微服务 Nacos + 单体应用容器
+# 共享 Nacos 基线配置单一真源在 mse-framework 仓 docker/（不在本仓复制）；
+# mse-demo 专属配置在 ../mse-demo/docker/nacos/config/mse-demo.yaml
+# =============================================================================
+name: mse-sample
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: mse-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: mse_platform
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-p123456" ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: mse-redis
+    restart: unless-stopped
+    ports:
+      - "${MSE_REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # 示例微服务（mse-demo/demo-boot）才需要；单体不依赖 Nacos
+  nacos:
+    image: nacos/nacos-server:v3.0.0
+    container_name: mse-nacos
+    restart: unless-stopped
+    profiles: [ "micro" ]
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLED: "false"
+      NACOS_AUTH_TOKEN: "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDEyMw=="
+      NACOS_AUTH_IDENTITY_KEY: serverIdentity
+      NACOS_AUTH_IDENTITY_VALUE: security
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "18080:8080"
+    volumes:
+      - nacos-data:/home/nacos/data
+    healthcheck:
+      test: [ "CMD", "curl", "-fs", "http://localhost:8848/nacos/v3/admin/core/state" ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  # 单体应用容器（不影响默认启动）：
+  #   sh build.sh && docker compose --profile apps up -d --build
+  mse-monolith:
+    build:
+      context: ..
+      dockerfile: mse-monolith/Dockerfile
+    image: mse/mse-monolith:1.0.0
+    container_name: mse-monolith
+    restart: unless-stopped
+    profiles: [ "apps" ]
+    environment:
+      TZ: Asia/Shanghai
+      MSE_MYSQL_HOST: mysql
+      MSE_REDIS_HOST: redis
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  mysql-data:
+  redis-data:
+  nacos-data:

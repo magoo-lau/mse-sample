@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: 后端构建（前置五仓顺序 install）
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { repository: magoo-lau/mse-framework, path: _framework }
+      - uses: actions/checkout@v4
+        with: { repository: magoo-lau/mse-modules, path: _modules }
+      - uses: actions/checkout@v4
+        with: { repository: magoo-lau/mse-mp, path: _mp }
+      - uses: actions/checkout@v4
+        with: { repository: magoo-lau/mse-oa, path: _oa }
+      - uses: actions/checkout@v4
+        with: { repository: magoo-lau/mse-mes, path: _mes }
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: 框架区
+        run: mvn -B -ntp install -DskipTests -f _framework/pom.xml
+      - name: 模块区七工程
+        run: |
+          for p in _modules/mse-*/pom.xml; do
+            mvn -B -ntp install -DskipTests -f "$p"
+          done
+      - name: mp / oa / mes
+        run: |
+          mvn -B -ntp install -DskipTests -f _mp/pom.xml
+          mvn -B -ntp install -DskipTests -f _oa/pom.xml
+          mvn -B -ntp install -DskipTests -f _mes/pom.xml
+      - name: 本仓（mse-monolith + mse-demo）
+        run: sh build.sh
+
+  frontend:
+    name: 前端构建（demo-ui）
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { repository: magoo-lau/mse-framework, path: _framework }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: '**/package-lock.json'
+      - name: 布局兄弟目录（满足 demo-ui file:../../../mse-framework 相对引用）
+        run: ln -s "$GITHUB_WORKSPACE/_framework" ../mse-framework
+      - name: demo-ui 构建
+        run: sh -c 'cd mse-demo/demo-ui && npm ci --no-audit --no-fund && npm run build --if-present'

@@ -4,7 +4,7 @@
 # MODULE/PORT 不同，模板体保持一致；改运行层处理需同步其他启动器的 Dockerfile）
 #
 # 构建（context 必须是仓库根目录，源码自包含，无需宿主机预装 Maven/JDK）：
-#   docker build -f mse-sample/mse-monolith/Dockerfile -t mse/mse-monolith:1.0.0 .
+#   docker build -f mse-monolith/Dockerfile -t mse/mse-monolith:1.0.0 .
 #
 # 批量构建全部启动器 / 按名选择：./mse-framework/mse-boot/build-images.sh
 # 本地已 mvn package 想快速出镜像：mse-framework/mse-boot/Dockerfile.prebuilt（所有启动器通用）
@@ -15,7 +15,7 @@ ARG RUNTIME_IMAGE=eclipse-temurin:21-jre-jammy
 
 # ---- 阶段 1：Maven 构建 ----
 FROM ${MAVEN_IMAGE} AS builder
-ARG MODULE=mse-sample/mse-monolith
+ARG MODULE=mse-monolith
 # 国内网络慢时可自行挂载加速配置，如：--build-arg MAVEN_ARGS="-s /path/settings.xml"
 ARG MAVEN_ARGS=""
 WORKDIR /build
