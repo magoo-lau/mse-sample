@@ -6,7 +6,7 @@
 
     <!-- 独立工程：不进根 pom 聚合，仅通过 BOM 消费基座发布件（积木式组装）。
          mse-monolith 聚合了 mse-modules 业务积木，构建前需先 mvn install 根目录（framework）与 mse-modules 各工程 -->
-    <groupId>vip.mseapp</groupId>
+    <groupId>com.github.magoo-lau.mse-sample</groupId>
     <artifactId>mse-sample</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -33,7 +33,7 @@
         <dependencies>
             <!-- 基座 BOM：仲裁全部第三方 + 基座模块（common-* / service-* / api-*）版本 -->
             <dependency>
-                <groupId>vip.mseapp</groupId>
+                <groupId>com.github.magoo-lau.mse-framework</groupId>
                 <artifactId>mse-dependencies</artifactId>
                 <version>${mse.version}</version>
                 <type>pom</type>
@@ -78,6 +78,11 @@
     </build>
 
     <repositories>
+    <repository>
+        <id>jitpack</id>
+        <url>https://jitpack.io</url>
+    </repository>
+
         <repository>
             <id>central</id>
             <url>https://repo.maven.apache.org/maven2</url>

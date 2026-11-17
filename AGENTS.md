@@ -8,7 +8,7 @@
 
 - `mse-monolith/`：单体聚合示例（mono-starter + 基座三积木 + 全部 biz 积木 jar；`mse.rpc.mode=local`；仅依赖 MySQL+Redis，MQ 经 mq-starter 可选）
 - `mse-demo/`：微服务业务工程标准样板（demo-api + demo-service + demo-boot + demo-ui）——**新业务工程照此创建**（ZCode 插件 mse-dev 模板即其去业务化版本，见 mse-agent-plugin 仓）
-- `mse-ui-sub/`、`mse-ui-mobile-sub/`：独立前端模板（file:../../mse-framework/mse-ui-shared，渲染/复制后改 name、端口、base）
+- `mse-ui-sub/`、`mse-ui-mobile-sub/`：独立前端模板（mse-ui-shared 经 npm git 依赖引入：github:magoo-lau/mse-ui-shared#release/1.0.0，渲染/复制后改 name、端口、base）
 
 ## 二、跨仓构建顺序（红线）
 

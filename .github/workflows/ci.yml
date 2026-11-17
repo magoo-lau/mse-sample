@@ -52,14 +52,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with: { repository: magoo-lau/mse-framework, path: _framework }
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: '**/package-lock.json'
-      - name: 布局兄弟目录（满足 demo-ui file:../../../mse-framework 相对引用）
-        run: ln -s "$GITHUB_WORKSPACE/_framework" ../mse-framework
-      - name: demo-ui 构建
+      - name: demo-ui 构建（mse-ui-shared 经 npm git 依赖安装，allow-git 已入库）
         run: sh -c 'cd mse-demo/demo-ui && npm ci --no-audit --no-fund && npm run build --if-present'

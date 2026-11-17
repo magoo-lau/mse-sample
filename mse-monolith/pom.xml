@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>vip.mseapp</groupId>
+        <groupId>com.github.magoo-lau.mse-sample</groupId>
         <artifactId>mse-sample</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
@@ -18,29 +18,29 @@
         <!-- 单体形态入口启动器：聚合基座三积木 service-system/tenant/auth + starter-web/mybatis/redis/security/rpc
              装配件 + actuator + 三方言 JDBC 驱动；mse.rpc.mode 默认 local，无 Nacos/Dubbo/Seata -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-framework</groupId>
             <artifactId>mono-starter</artifactId>
         </dependency>
         <!-- 模块区积木（mse-modules 独立工程发布件，构建前需先 mvn install 对应工程）：
              全部经 Spring Boot SPI 自动装配，引入即得 Controller/Service/Mapper；
              微信公众号 / 协同办公（含 Flowable）/ 开放平台 / 数据中台 -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-mp</groupId>
             <artifactId>mp-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-oa</groupId>
             <artifactId>oa-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>open-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>data-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
@@ -49,7 +49,7 @@
              连接见 application.yaml 的 spring.elasticsearch.uris；ES 未启动不影响单体其余功能，
              仅搜索索引/查询不可用。源登记与增量数据经契约本地直调（mse.rpc.mode=local） -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>search-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
@@ -57,7 +57,7 @@
              业务表与角色种子随 jar 内 db/tenant 脚本启动自动应用（9 个角色按租户自动种入），
              子应用/菜单/权限点经 starter-bridge 推送基座库；规划文档见 mse-modules/mse-mes/docs -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-mes</groupId>
             <artifactId>mes-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
@@ -66,18 +66,18 @@
              双注解退化为 @Transactional 本地事务（需演示 Seata 全局事务请改跑微服务 mse-demo）；
              首次启用需先对 mse 库执行 mse-sample/mse-demo/sql/<方言>/demo_init.sql -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-sample</groupId>
             <artifactId>demo-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <!-- MQ 可选（与单体形态不冲突）：RocketMQ 租户事件装配（demo 订单事件演示的 TenantEventSender）；
              application.yaml 未配置 rocketmq 时自动降级 noop，事件不可用、其余功能不受影响 -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-framework</groupId>
             <artifactId>mq-starter</artifactId>
         </dependency>
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>ai-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
@@ -85,7 +85,7 @@
              为 optional 不传递——单体 classpath 无 SDK，mse.fs.storage.type 强制 local
              （本地文件系统模式）；需要 RustFS 时给单体补引该依赖即可 -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>fs-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
@@ -101,7 +101,7 @@
              内存态调度（单实例部署即可）。首次启用需执行 mse-modules/mse-monitor/sql/<方言>/ 的
              monitor_base.sql + monitor_init.sql -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>monitor-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
@@ -109,7 +109,7 @@
              无业务表（实例绑定走 mse.im.* 配置）；需配套部署 OpenIM 实例并在单体配置
              mse.im.server.*（api-url/ws-url/secret），见 mse-modules/mse-im/docs/TODO.md -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>im-service</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>

@@ -7,13 +7,13 @@
     <!-- 独立工程：parent 指向基座 mse-starter-parent（编译/插件/BOM/仓库统一收编，随框架 mvn install），
          随 mse-sample 聚合构建 -->
     <parent>
-        <groupId>vip.mseapp</groupId>
+        <groupId>com.github.magoo-lau.mse-framework</groupId>
         <artifactId>mse-starter-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath/>
     </parent>
 
-    <groupId>vip.mseapp</groupId>
+    <groupId>com.github.magoo-lau.mse-sample</groupId>
     <artifactId>mse-demo</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -30,12 +30,12 @@
         <dependencies>
             <!-- 本工程模块 -->
             <dependency>
-                <groupId>vip.mseapp</groupId>
+                <groupId>com.github.magoo-lau.mse-sample</groupId>
                 <artifactId>demo-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>vip.mseapp</groupId>
+                <groupId>com.github.magoo-lau.mse-sample</groupId>
                 <artifactId>demo-service</artifactId>
                 <version>${project.version}</version>
             </dependency>

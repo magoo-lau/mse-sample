@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>vip.mseapp</groupId>
+        <groupId>com.github.magoo-lau.mse-sample</groupId>
         <artifactId>mse-demo</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
@@ -19,17 +19,17 @@
              （鉴权数据源 @SaCheckPermission / 独立库租户路由 / 操作日志 RPC 回退，本服务不打包基座 HTTP 接口）
              + Seata 内置（MSE_SEATA_ENABLED 开关）+ actuator + 三方言 JDBC 驱动 -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-framework</groupId>
             <artifactId>micro-starter</artifactId>
         </dependency>
         <!-- 自有业务积木 -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-sample</groupId>
             <artifactId>demo-service</artifactId>
         </dependency>
         <!-- 按需选装：RocketMQ 租户事件（TenantEventSender 装配；工具类型 common-mq 由 demo-service 携带） -->
         <dependency>
-            <groupId>vip.mseapp</groupId>
+            <groupId>com.github.magoo-lau.mse-framework</groupId>
             <artifactId>mq-starter</artifactId>
         </dependency>
     </dependencies>

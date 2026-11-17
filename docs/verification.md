@@ -20,7 +20,7 @@
 
 ## 三、模板
 
-1. mse-ui-sub / mse-ui-mobile-sub：复制改 name/端口/base 后 `npm ci && npm run build` 通过；file:../../mse-framework/mse-ui-shared 解析正确。
+1. mse-ui-sub / mse-ui-mobile-sub：复制改 name/端口/base 后 `npm ci && npm run build` 通过（mse-ui-shared 为 npm git 依赖，allow-git 已随模板 .npmrc 提供）。
 2. mse-agent-plugin 仓 templates 渲染产物与本模板语义一致（那边为去业务化精炼版）。
 
 ## 四、工程底线
