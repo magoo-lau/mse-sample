@@ -37,7 +37,7 @@
         <dependency>
             <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>open-service</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>main-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.github.magoo-lau.mse-modules</groupId>
@@ -51,7 +51,7 @@
         <dependency>
             <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>search-service</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>main-SNAPSHOT</version>
         </dependency>
         <!-- mes-service：MES 制造执行系统（建模/计划/执行/报工/质量/设备/物料/追溯/看板一期闭环）。
              业务表与角色种子随 jar 内 db/tenant 脚本启动自动应用（9 个角色按租户自动种入），
@@ -79,7 +79,7 @@
         <dependency>
             <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>ai-service</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>main-SNAPSHOT</version>
         </dependency>
         <!-- fs-service：文件存储（本地/RustFS 可切换）。其 S3 客户端（software.amazon.awssdk:s3）
              为 optional 不传递——单体 classpath 无 SDK，mse.fs.storage.type 强制 local
@@ -87,7 +87,7 @@
         <dependency>
             <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>fs-service</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>main-SNAPSHOT</version>
         </dependency>
         <!-- S3 兼容客户端（RustFS 1.x）：fs-service 中为 optional 不传递，启动器显式引入后
              local/rustfs 两种存储模式可经 Nacos 配置（mse.fs.storage.type）随时切换，无需重打包 -->
@@ -103,7 +103,7 @@
         <dependency>
             <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>monitor-service</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>main-SNAPSHOT</version>
         </dependency>
         <!-- im-service：即时通讯集成 OpenIM（账号桥 + IM 会话签发 + 工作台 SSO）。
              无业务表（实例绑定走 mse.im.* 配置）；需配套部署 OpenIM 实例并在单体配置
@@ -111,7 +111,7 @@
         <dependency>
             <groupId>com.github.magoo-lau.mse-modules</groupId>
             <artifactId>im-service</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>main-SNAPSHOT</version>
         </dependency>
         <!-- 启用 Spring AI 默认模型（mseChatClient 基线）时取消注释，
              并同步把 application.yaml 的 spring.ai.chat.client.enabled 改为 true
